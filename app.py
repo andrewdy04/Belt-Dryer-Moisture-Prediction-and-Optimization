@@ -11,10 +11,6 @@ from scipy.optimize import differential_evolution
 
 st.set_page_config(page_title="Moisture Prediction Tool", layout="wide")
 st.title("\U0001F4C8 Moisture Prediction & Optimization App")
-st.caption("🧪 DEBUG: Code last updated successfully.")
-
-st.subheader("📁 Files in Current Directory (Debug)")
-st.write(os.listdir("."))
 
 # --- Find available product data files ---
 @st.cache_data
@@ -127,11 +123,6 @@ else:
         margin = 1.645 * std_dev  # 90% confidence
         lower = prediction - margin
         upper = prediction + margin
-
-        # Debug display
-        st.write(f"DEBUG: Std Dev = {std_dev:.4f}")
-        st.write(f"DEBUG: Margin = {margin:.4f}")
-        st.write(f"DEBUG: CI = {lower:.2f} to {upper:.2f}")
 
         st.success(f"Predicted Final Moisture: {prediction:.2f}%")
         st.info(f"With 90% confidence, moisture is between {lower:.2f}% and {upper:.2f}%")
