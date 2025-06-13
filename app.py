@@ -185,20 +185,22 @@ else:
                 inputs = fixed_values.copy()
                 for i, var in enumerate(opt_vars):
                     inputs[var] = x[i]
+
                 row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
                 pred = model.predict(row)[0]
 
-                # Constraint 1: ±3% of target
+                # Constraint 1: moisture must be within ±3% of target
                 if abs(pred - target) > 0.03 * target:
                     return 1e6 + (pred - target) ** 2
 
-                # Constraint 2: Increasing temperatures
-                t1 = inputs['1st_Temp']
-                t2 = inputs['2nd_Temp']
-                t3 = inputs['3rd_Temp']
-                t4 = inputs['4th_Temp']
-                if not (t1 < t2 < t3 < t4):
-                    return 1e6 + (pred - target) ** 2
+                # Constraint 2: chamber temperatures must be strictly increasing
+                t1 = inputs.get('1st_Temp')
+                t2 = inputs.get('2nd_Temp')
+                t3 = inputs.get('3rd_Temp')
+                t4 = inputs.get('4th_Temp')
+                if None not in (t1, t2, t3, t4):  # ensure all temps are present
+                    if not (t1 < t2 < t3 < t4):
+                        return 1e6 + (pred - target) ** 2
 
                 return (pred - target) ** 2
 
