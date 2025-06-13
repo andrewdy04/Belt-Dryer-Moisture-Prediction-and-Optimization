@@ -188,11 +188,19 @@ else:
                 row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
                 pred = model.predict(row)[0]
 
-                # Enforce ±3% moisture constraint
+                # Constraint 1: ±3% of target
                 if abs(pred - target) > 0.03 * target:
-                    return 1e6 + (pred - target) ** 2  # Penalize large deviations
-                else:
-                    return (pred - target) ** 2
+                    return 1e6 + (pred - target) ** 2
+
+                # Constraint 2: Increasing temperatures
+                t1 = inputs['1st_Temp']
+                t2 = inputs['2nd_Temp']
+                t3 = inputs['3rd_Temp']
+                t4 = inputs['4th_Temp']
+                if not (t1 < t2 < t3 < t4):
+                    return 1e6 + (pred - target) ** 2
+
+                return (pred - target) ** 2
 
             with st.spinner("Optimizing, please wait..."):
                 result = differential_evolution(
