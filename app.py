@@ -184,12 +184,18 @@ else:
             st.warning("You must leave at least one variable blank to optimize.")
         else:
             def objective(x):
-                inputs = fixed_values.copy()
-                for i, var in enumerate(opt_vars):
-                    inputs[var] = x[i]
-                row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
-                pred = model.predict(row)[0]
-                return (pred - target) ** 2
+    inputs = fixed_values.copy()
+    for i, var in enumerate(opt_vars):
+        inputs[var] = x[i]
+    row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
+    pred = model.predict(row)[0]
+
+    # Enforce ±3% moisture constraint
+    if abs(pred - target) > 0.03 * target:
+        return 1e6 + (pred - target) ** 2  # Penalize large deviations
+    else:
+        return (pred - target) ** 2
+
 
             with st.spinner("Optimizing, please wait..."):
                 result = differential_evolution(
