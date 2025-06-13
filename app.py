@@ -262,22 +262,30 @@ else:
                     st.write(f"**{k}**: {v:.2f}")
                 st.write(f"**Predicted Moisture**: {pred:.2f}% (Target: {target:.2f}%)")
 
-    with st.expander("Interactive ICE Plots (Individual Conditional Expectation)"):
-        st.write("These plots show how varying one feature at a time affects the predicted moisture, while holding all other inputs fixed.")
-        st.write("Each line represents how the model’s prediction changes for one observation as the selected variable varies.")
+    # --- ICE Plot Section ---
+    ice_tab, = st.tabs(["ICE Plots"])
+
+    with ice_tab:
+        st.subheader("ICE Plots (Individual Conditional Expectation)")
+        st.write(
+            "These plots show how varying one feature at a time affects the predicted moisture, "
+            "while keeping all other features fixed. Each line represents one observation."
+        )
 
         from sklearn.inspection import PartialDependenceDisplay
-        import matplotlib.pyplot as plt
+        selected_features = ['Flowrate', 'Tank_Level', 'Low_Side_Vac',
+                         '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']
 
-        selected_features = ['Flowrate', 'Tank_Level', 'Low_Side_Vac', '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']
-    
         for feat in selected_features:
+            st.markdown(f"### {feat}")
             fig, ax = plt.subplots(figsize=(6, 4))
             PartialDependenceDisplay.from_estimator(
-                model, df[feature_names], [feat],
+                model,
+                df[feature_names],
+                [feat],
                 kind="individual",
                 grid_resolution=30,
-                ice_lines_kw={"alpha": 0.3},
+                ice_lines_kw={"alpha": 0.2},
                 ax=ax
-        )
-        st.pyplot(fig)
+                )
+            st.pyplot(fig)
