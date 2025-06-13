@@ -12,13 +12,10 @@ from scipy.optimize import differential_evolution
 st.set_page_config(page_title="Moisture Prediction Tool", layout="wide")
 st.title("\U0001F4C8 Moisture Prediction & Optimization App")
 
-# --- Find available product data files ---
 @st.cache_data
 def list_excel_files():
-    files = [f for f in os.listdir('.') if f.endswith("Moisture Data.xlsx")]
-    return files
+    return [f for f in os.listdir('.') if f.endswith("Moisture Data.xlsx")]
 
-# --- Load and process dataset ---
 @st.cache_data
 def load_data(filename):
     df = pd.read_excel(filename)
@@ -28,56 +25,32 @@ def load_data(filename):
 def clean_and_validate_data(df):
     required_cols = ['Final_Moisture', 'Flowrate', 'Tank_Level', 'Low_Side_Vac',
                      '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']
-
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise KeyError(f"Missing required columns: {missing}")
-
-    df = df[required_cols].copy()
-    df = df.dropna()
-
+    df = df[required_cols].copy().dropna()
     for col in required_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-    df = df.dropna()
+    return df.dropna()
 
-    return df
-
-# --- Train model ---
 def train_model(df):
-    X = df[['Flowrate', 'Tank_Level', 'Low_Side_Vac',
-            '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']]
+    X = df[['Flowrate', 'Tank_Level', 'Low_Side_Vac', '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']]
     y = df['Final_Moisture']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
     model = GradientBoostingRegressor(
-        n_estimators=300,
-        max_depth=6,
-        learning_rate=0.1,
-        subsample=0.8,
-        min_samples_leaf=10,
-        random_state=42
-    )
+        n_estimators=300, max_depth=6, learning_rate=0.1, subsample=0.8,
+        min_samples_leaf=10, random_state=42)
     model.fit(X_train, y_train)
+    return model, r2_score(y, model.predict(X)), np.sqrt(mean_squared_error(y, model.predict(X))), \
+           r2_score(y_test, model.predict(X_test)), np.sqrt(mean_squared_error(y_test, model.predict(X_test))), \
+           X.columns, X_train, y_train
 
-    y_pred = model.predict(X)
-    y_pred_test = model.predict(X_test)
-
-    r2_full = r2_score(y, y_pred)
-    rmse_full = np.sqrt(mean_squared_error(y, y_pred))
-    r2_test = r2_score(y_test, y_pred_test)
-    rmse_test = np.sqrt(mean_squared_error(y_test, y_pred_test))
-
-    return model, r2_full, rmse_full, r2_test, rmse_test, X.columns, X_train, y_train
-
-# --- Plot feature importance ---
 def plot_feature_importance(model, feature_names):
-    importances = model.feature_importances_
     fig, ax = plt.subplots()
-    sns.barplot(x=importances, y=feature_names, ax=ax)
-    ax.set_title("Feature Importance (Higher = More Influence on Prediction)")
+    sns.barplot(x=model.feature_importances_, y=feature_names, ax=ax)
+    ax.set_title("Feature Importance")
     st.pyplot(fig)
 
-# --- UI ---
 data_files = list_excel_files()
 
 if not data_files:
@@ -111,67 +84,72 @@ else:
     if submitted:
         input_df = pd.DataFrame([[flow, tank, vac, t1, t2, t3, t4]], columns=feature_names)
         prediction = model.predict(input_df)[0]
-
-        try:
-            residuals = model.predict(X_train) - y_train
-            std_dev = np.std(residuals)
-            margin = 1.645 * std_dev
-            lower = prediction - margin
-            upper = prediction + margin
-
-            st.success(f"Predicted Final Moisture: {prediction:.2f}%")
-            st.info(f"With 90% confidence, moisture is between {lower:.2f}% and {upper:.2f}%")
-        except Exception as e:
-            st.error(f"Failed to compute confidence interval: {e}")
+        residuals = model.predict(X_train) - y_train
+        std_dev = np.std(residuals)
+        margin = 1.645 * std_dev
+        lower, upper = prediction - margin, prediction + margin
+        st.success(f"Predicted Final Moisture: {prediction:.2f}%")
+        st.info(f"With 90% confidence, moisture is between {lower:.2f}% and {upper:.2f}%")
 
     st.subheader("Optimize to Target Moisture")
     with st.form("optimize_form"):
         target = st.number_input("Target Final Moisture (%)", value=8.0)
+        opt_inputs = {}
+        for field in feature_names:
+            val = st.text_input(f"{field} (leave blank to optimize)")
+            opt_inputs[field] = val
         opt_submit = st.form_submit_button("Optimize")
 
     if opt_submit:
-        bounds = [
-            (15, 50),     # Flowrate
-            (20, 60),     # Tank_Level
-            (1, 15),      # Low_Side_Vac
-            (120, 250),   # 1st_Temp
-            (180, 300),   # 2nd_Temp
-            (180, 320),   # 3rd_Temp
-            (180, 300)    # 4th_Temp
-        ]
+        bounds_dict = {
+            'Flowrate': (15, 50), 'Tank_Level': (20, 60), 'Low_Side_Vac': (1, 15),
+            '1st_Temp': (120, 250), '2nd_Temp': (180, 300),
+            '3rd_Temp': (180, 320), '4th_Temp': (180, 300)
+        }
 
-        def constraint_penalty(x):
-            # Enforce increasing temps: t1 < t2 < t3 < t4
-            if not (x[3] < x[4] < x[5] < x[6]):
-                return 1e6  # big penalty
-            return 0
-
-        def objective(x):
-            input_df = pd.DataFrame([x], columns=feature_names)
-            pred = model.predict(input_df)[0]
-            penalty = constraint_penalty(x)
-            return (pred - target) ** 2 + penalty
-
-        with st.spinner("Optimizing, please wait..."):
-            result = differential_evolution(
-                objective,
-                bounds,
-                strategy="best1bin",
-                maxiter=200,
-                tol=1e-6,
-                seed=42
-            )
-
-        if result.success:
-            x = result.x
-            pred = model.predict(pd.DataFrame([x], columns=feature_names))[0]
-            if abs(pred - target) <= 0.3:
-                st.success("Optimization Complete!")
+        opt_vars, opt_bounds, fixed_values = [], [], {}
+        for k, v in opt_inputs.items():
+            if v.strip() == '':
+                opt_vars.append(k)
+                opt_bounds.append(bounds_dict[k])
             else:
-                st.warning("Optimization finished, but prediction differs from target by more than ±0.3%.")
+                fixed_values[k] = float(v)
 
-            for name, val in zip(feature_names, x):
-                st.write(f"**{name}**: {val:.2f}")
-            st.write(f"**Predicted Moisture**: {pred:.2f}% (Target: {target:.2f}%)")
+        if not opt_vars:
+            st.warning("You must leave at least one variable blank to optimize.")
         else:
-            st.error("Optimization failed to converge.")
+            def objective(x):
+                full_input = fixed_values.copy()
+                for i, var in enumerate(opt_vars):
+                    full_input[var] = x[i]
+
+                temps = [full_input[f"{i}_Temp"] for i in ['1st', '2nd', '3rd', '4th']]
+                if not temps == sorted(temps):
+                    return 1e6  # penalize if temps not increasing
+
+                row = pd.DataFrame([[full_input[col] for col in feature_names]], columns=feature_names)
+                pred = model.predict(row)[0]
+                return (pred - target) ** 2
+
+            with st.spinner("Optimizing, please wait..."):
+                result = differential_evolution(
+                    objective,
+                    opt_bounds,
+                    seed=42,
+                    maxiter=500,
+                    tol=1e-6,
+                    polish=True
+                )
+
+            if result.fun < 0.3**2:
+                for i, var in enumerate(opt_vars):
+                    fixed_values[var] = result.x[i]
+                row = pd.DataFrame([[fixed_values[col] for col in feature_names]], columns=feature_names)
+                pred = model.predict(row)[0]
+
+                st.success("Optimization Complete!")
+                for k, v in fixed_values.items():
+                    st.write(f"**{k}**: {v:.2f}")
+                st.write(f"**Predicted Moisture**: {pred:.2f}% (Target: {target:.2f}%)")
+            else:
+                st.warning("Optimization failed to converge within ±0.3% of target moisture.")
