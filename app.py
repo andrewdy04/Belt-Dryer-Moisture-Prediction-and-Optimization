@@ -111,7 +111,7 @@ else:
         submitted = st.form_submit_button("Predict")
 
     if submitted:
-        st.write("🧪 DEBUG: Entered prediction block")
+        st.write("Success")
 
     input_df = pd.DataFrame([[flow, tank, vac, t1, t2, t3, t4]], columns=feature_names)
     prediction = model.predict(input_df)[0]
