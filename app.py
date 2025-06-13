@@ -25,7 +25,6 @@ def load_data(filename):
     df = clean_and_validate_data(df)
     return df
 
-
 def clean_and_validate_data(df):
     required_cols = ['Final_Moisture', 'Flowrate', 'Tank_Level', 'Low_Side_Vac',
                      '1st_Temp', '2nd_Temp', '3rd_Temp', '4th_Temp']
@@ -42,7 +41,6 @@ def clean_and_validate_data(df):
     df = df.dropna()
 
     return df
-
 
 # --- Train model ---
 def train_model(df):
@@ -132,7 +130,7 @@ else:
         result_df["Prediction"] = prediction
         result_df["CI Lower"] = lower
         result_df["CI Upper"] = upper
-    
+
     except Exception as e:
         st.error(f"Failed to compute confidence interval: {e}")
 
@@ -187,17 +185,16 @@ else:
                 inputs = fixed_values.copy()
                 for i, var in enumerate(opt_vars):
                     inputs[var] = x[i]
-                    row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
-                    pred = model.predict(row)[0]
+                row = pd.DataFrame([[inputs[col] for col in feature_names]], columns=feature_names)
+                pred = model.predict(row)[0]
 
-    # Enforce ±3% moisture constraint
+                # Enforce ±3% moisture constraint
                 if abs(pred - target) > 0.03 * target:
                     return 1e6 + (pred - target) ** 2  # Penalize large deviations
                 else:
                     return (pred - target) ** 2
 
-
-    with st.spinner("Optimizing, please wait..."):
+            with st.spinner("Optimizing, please wait..."):
                 result = differential_evolution(
                     objective,
                     opt_bounds,
@@ -207,7 +204,7 @@ else:
                     polish=True
                 )
 
-    if result.success or result.fun < 1.0:
+            if result.success or result.fun < 1.0:
                 for i, var in enumerate(opt_vars):
                     fixed_values[var] = result.x[i]
                 row = pd.DataFrame([[fixed_values[col] for col in feature_names]], columns=feature_names)
@@ -217,7 +214,7 @@ else:
                 for k, v in fixed_values.items():
                     st.write(f"**{k}**: {v:.2f}")
                 st.write(f"**Predicted Moisture**: {pred:.2f}% (Target: {target:.2f}%)")
-    else:
+            else:
                 st.warning("Optimization did not fully converge, but here is the best result found:")
                 for i, var in enumerate(opt_vars):
                     fixed_values[var] = result.x[i]
