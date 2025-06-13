@@ -119,17 +119,37 @@ else:
         submitted = st.form_submit_button("Predict")
 
     if submitted:
-        input_df = pd.DataFrame([[flow, tank, vac, t1, t2, t3, t4]], columns=feature_names)
-        prediction = model.predict(input_df)[0]
+        st.write("🧪 DEBUG: Entered prediction block")
 
+    input_df = pd.DataFrame([[flow, tank, vac, t1, t2, t3, t4]], columns=feature_names)
+    prediction = model.predict(input_df)[0]
+
+    # Compute residuals and CI
+    try:
         residuals = model.predict(X_train) - y_train
         std_dev = np.std(residuals)
-        margin = 1.645 * std_dev
+        margin = 1.645 * std_dev  # 90% confidence
         lower = prediction - margin
         upper = prediction + margin
 
+        # Debug display
+        st.write(f"DEBUG: Std Dev = {std_dev:.4f}")
+        st.write(f"DEBUG: Margin = {margin:.4f}")
+        st.write(f"DEBUG: CI = {lower:.2f} to {upper:.2f}")
+
         st.success(f"Predicted Final Moisture: {prediction:.2f}%")
         st.info(f"With 90% confidence, moisture is between {lower:.2f}% and {upper:.2f}%")
+
+        # Optional: save to file (for testing)
+        result_df = input_df.copy()
+        result_df["Prediction"] = prediction
+        result_df["CI Lower"] = lower
+        result_df["CI Upper"] = upper
+        result_df.to_excel("prediction_with_ci.xlsx", index=False)
+        st.download_button("⬇️ Download Prediction with CI", data=result_df.to_csv(index=False).encode(), file_name="prediction_with_ci.csv", mime="text/csv")
+
+    except Exception as e:
+        st.error(f"Failed to compute confidence interval: {e}")
 
     st.subheader("Optimize to Target Moisture")
     with st.form("optimize_form"):
