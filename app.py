@@ -134,6 +134,34 @@ else:
     except Exception as e:
         st.error(f"Failed to compute confidence interval: {e}")
 
+    tabs = st.tabs(["🔍 Predict & Optimize", "📈 Individual Conditional Expectation (ICE) Plots"])
+
+    with tabs[1]:  # ICE Plot tab
+        st.subheader("📈 Individual Conditional Expectation (ICE) Plot")
+
+        selected_feature = st.selectbox("Select feature to analyze:", feature_names)
+
+        # Use 10 evenly spaced points within the feature's range
+        feature_range = np.linspace(df[selected_feature].min(), df[selected_feature].max(), 10)
+
+        # Use median values for all features as baseline
+        median_input = df[feature_names].median().to_dict()
+
+        predictions = []
+        for val in feature_range:
+            input_dict = median_input.copy()
+            input_dict[selected_feature] = val
+            input_row = pd.DataFrame([input_dict])
+            pred = model.predict(input_row)[0]
+            predictions.append(pred)
+
+        fig, ax = plt.subplots()
+        ax.plot(feature_range, predictions, marker='o')
+        ax.set_xlabel(selected_feature)
+        ax.set_ylabel("Predicted Final Moisture (%)")
+        ax.set_title(f"ICE Plot for {selected_feature}")
+        st.pyplot(fig)
+        
     st.subheader("Optimize to Target Moisture")
     with st.form("optimize_form"):
         target = st.number_input("Target Final Moisture (%)", value=8.0)
