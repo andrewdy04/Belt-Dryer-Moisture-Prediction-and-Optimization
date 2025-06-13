@@ -132,8 +132,6 @@ else:
         result_df["Prediction"] = prediction
         result_df["CI Lower"] = lower
         result_df["CI Upper"] = upper
-        result_df.to_excel("prediction_with_ci.xlsx", index=False)
-        st.download_button("⬇️ Download Prediction with CI", data=result_df.to_csv(index=False).encode(), file_name="prediction_with_ci.csv", mime="text/csv")
 
     except Exception as e:
         st.error(f"Failed to compute confidence interval: {e}")
